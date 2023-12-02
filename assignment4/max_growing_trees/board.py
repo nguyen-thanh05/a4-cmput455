@@ -287,12 +287,16 @@ class GoBoard(object):
         """
         winner = self.detect_five_in_a_row()
         if winner != EMPTY:
+            # print("5 in a row detected")
             return True, winner
         elif self.get_captures(BLACK) >= 10:
+            # print("10 captures detected")
             return True, BLACK
         elif self.get_captures(WHITE) >= 10:
+            # print("10 captures detected")
             return True, WHITE
         elif self.end_of_game():
+            # print("end of game")
             return True, EMPTY
         else:
             return False, EMPTY

@@ -27,8 +27,8 @@ import numpy as np
 import TreeNode
 import bisect
 
-SIMULATION_COUNT = 100
-TIME_TO_SIMULATE = 5
+SIMULATION_COUNT = 500
+TIME_TO_SIMULATE = 20
 
 
 class A4SubmissionPlayer(GoEngine):
@@ -65,6 +65,7 @@ class A4SubmissionPlayer(GoEngine):
 
         # start timer
         self.solve_start_time = time.time()
+        current_time = self.solve_start_time
 
         # while the timer has not exceeded TIME_TO_SIMULATE:
         # if the number of leaves to simulate is greater than 0:
@@ -82,18 +83,29 @@ class A4SubmissionPlayer(GoEngine):
         # insert the new leaf nodes into leaves_to_simulate so that leaves_to_simulate is ordered by leaf node value
         # repeat until the timer has exceeded TIME_TO_SIMULATE
 
-        while time.time() - self.solve_start_time < TIME_TO_SIMULATE:
-            print(f"leaves to expand is:", leaves_to_expand)
-            print(f"leaves to simulate is", leaves_to_simulate)
+        while current_time - self.solve_start_time < TIME_TO_SIMULATE:
+            current_time = time.time()
+            # print(f"start time is {self.solve_start_time} ")
+            # print(f"current time is {current_time} ")
+            # print(f"elapsed time is {current_time - self.solve_start_time} ")
+            # print(f"leaves to expand is:", leaves_to_expand)
+            # print(f"leaves to simulate is", leaves_to_simulate)
             if leaves_to_simulate:  # if there are leaves to simulate, then simulate
                 leaf = leaves_to_simulate.pop()
-                print(f"now simulating from {leaf.name}")
-                if leaf.board.get_empty_points().size == 0:
-                    leaf.value = leaf.board.score()[0]
+                # print(f"now simulating from {leaf.name}")
+                if leaf.board.is_terminal()[0]:
+                    # print(f"leaf {leaf.name} is terminal, not adding to expand")
+                    result = leaf.board.is_terminal()[1]
+                    if result == WHITE:
+                        leaf.value = -1
+                    elif result == BLACK:
+                        leaf.value = 1
+                    else:
+                        leaf.value = 0
                     continue
                 leaf.value = self.simulate(leaf.board, SIMULATION_COUNT)
                 # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
-                print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
+                # print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
                 bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
             else:  # else there are no leaves to simulate, so expand
                 if leaves_to_expand:  # if there are leaves to expand, then expand
@@ -101,9 +113,9 @@ class A4SubmissionPlayer(GoEngine):
                         leaf = leaves_to_expand.pop()
                     else:  # else it is our opponent's turn to play, so expand the leaf with the lowest value
                         leaf = leaves_to_expand.pop(0)
-                    print(f"no leaf to simulate, so expanding {leaf.name}")
+                    # print(f"no leaf to simulate, so expanding {leaf.name}")
                     moves = GoBoardUtil.generate_legal_moves(leaf.board, leaf.color_to_play)
-                    print(moves)
+                    # print(moves)
                     for move in moves:
                         child = leaf.add_child(move, 0)
                         child.name = str(move)
@@ -117,15 +129,25 @@ class A4SubmissionPlayer(GoEngine):
         # once the timer has exceeded TIME_TO_SIMULATE, use alpha-beta pruning to update the value of
         # nodes in the tree
 
-        self.alpha_beta_pruning(root, float('-inf'), float('inf'), True)
-        best_move = int(root.get_max_child().name)
+        if given_color == BLACK:
+            maximizing_player = True
+        else:
+            maximizing_player = False
+        self.alpha_beta_pruning(root, float('-inf'), float('inf'), maximizing_player)
+        if maximizing_player:
+            best_move = int(root.get_max_child().name)
+        else:
+            best_move = int(root.get_min_child().name)
+        for kiddo in root.children:
+            print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
+        print(f"Choosing {best_move}. ")
         return format_point(point_to_coord(best_move, board.size)).lower()
 
     def alpha_beta_pruning(self, node: TreeNode, alpha, beta, maximizing_player: bool):
         """
         Uses alpha-beta pruning to determine the value of all important nodes.
         """
-        print(f"node is {node}")
+        # print(f"node is {node}")
         if not node.children:
             return node.value
 
@@ -165,10 +187,12 @@ class A4SubmissionPlayer(GoEngine):
                 moves = GoBoardUtil.generate_legal_moves(board_copy, board_copy.current_player)
                 move = random.choice(moves)
                 board_copy.play_move(move, board_copy.current_player)
-                board_copy.current_player = opponent(board_copy.current_player)
+                # board_copy.current_player = opponent(board_copy.current_player)
 
             # board is terminal so get value: (win for black: 1), (win for white: -1), (draw: 0)
             result = board_copy.is_terminal()[1]
+            # print(f" simulation {i}'s result was: {result}")
+
             if result == WHITE:
                 update = -1
             elif result == BLACK:
