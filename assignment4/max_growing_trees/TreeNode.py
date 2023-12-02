@@ -13,9 +13,12 @@ class Node(object):
         self.parent = None
         self.children = {}
         self.name = None
-        self.value = None
+        self.value = 0
         self.board = None
         self.color_to_play = None
+
+    def __repr__(self):
+        return self.name
 
     def add_child(self, name, value):
         """Adds a child node to the node.

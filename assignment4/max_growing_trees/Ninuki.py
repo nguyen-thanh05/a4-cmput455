@@ -50,14 +50,18 @@ class A4SubmissionPlayer(GoEngine):
         leaves_to_simulate = []
         leaves_to_expand = []
 
+        if color == "w":
+            given_color = WHITE
+        else:
+            given_color = BLACK
         # build tree by creating root node and adding it to the leaves dictionary
         root = TreeNode.Node()
         root.board = board.copy()
-        root.color_to_play = color
+        root.color_to_play = opponent(given_color)
         root.name = "root"
         root.value = None
         root.parent = None
-        leaves_to_simulate.append(root)
+        leaves_to_expand.append(root)
 
         # start timer
         self.solve_start_time = time.time()
@@ -79,27 +83,34 @@ class A4SubmissionPlayer(GoEngine):
         # repeat until the timer has exceeded TIME_TO_SIMULATE
 
         while time.time() - self.solve_start_time < TIME_TO_SIMULATE:
+            print(f"leaves to expand is:", leaves_to_expand)
+            print(f"leaves to simulate is", leaves_to_simulate)
             if leaves_to_simulate:  # if there are leaves to simulate, then simulate
                 leaf = leaves_to_simulate.pop()
+                print(f"now simulating from {leaf.name}")
                 if leaf.board.get_empty_points().size == 0:
                     leaf.value = leaf.board.score()[0]
                     continue
                 leaf.value = self.simulate(leaf.board, SIMULATION_COUNT)
                 # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
-                bisect.insort(leaves_to_expand, (leaf, leaf.value), key=lambda x: x[1])
+                print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
+                bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
             else:  # else there are no leaves to simulate, so expand
                 if leaves_to_expand:  # if there are leaves to expand, then expand
-                    if leaves_to_expand[0][0].color_to_play == color:  # if it is our turn to play, then expand the leaf with the highest value
-                        leaf = leaves_to_expand.pop()[0]
+                    if leaves_to_expand[0].color_to_play == given_color:  # if it is our turn to play, then expand the leaf with the highest value
+                        leaf = leaves_to_expand.pop()
                     else:  # else it is our opponent's turn to play, so expand the leaf with the lowest value
-                        leaf = leaves_to_expand.pop(0)[0]
+                        leaf = leaves_to_expand.pop(0)
+                    print(f"no leaf to simulate, so expanding {leaf.name}")
                     moves = GoBoardUtil.generate_legal_moves(leaf.board, leaf.color_to_play)
+                    print(moves)
                     for move in moves:
-                        child = leaf.add_child(move, None)
+                        child = leaf.add_child(move, 0)
+                        child.name = str(move)
+                        child.color_to_play = opponent(leaf.color_to_play)  # assign the colours of the children
                         child.board = leaf.board.copy()
                         child.board.play_move(move, child.color_to_play)
-                        child.color_to_play = opponent(child.color_to_play)
-                        bisect.insort(leaves_to_simulate, child, key=lambda x: x.value)
+                        leaves_to_simulate.append(child)
                 else:  # else there are no leaves to expand, so break
                     break
 
@@ -107,20 +118,21 @@ class A4SubmissionPlayer(GoEngine):
         # nodes in the tree
 
         self.alpha_beta_pruning(root, float('-inf'), float('inf'), True)
-        best_move = root.get_max_child().name
-        return best_move
+        best_move = int(root.get_max_child().name)
+        return format_point(point_to_coord(best_move, board.size)).lower()
 
-    def alpha_beta_pruning(self, node, alpha, beta, maximizing_player):
+    def alpha_beta_pruning(self, node: TreeNode, alpha, beta, maximizing_player: bool):
         """
         Uses alpha-beta pruning to determine the value of all important nodes.
         """
+        print(f"node is {node}")
         if not node.children:
             return node.value
 
         if maximizing_player:
             max_eval = float('-inf')
             for child in node.children:
-                eval_child = self.alpha_beta_pruning(child, alpha, beta, False)
+                eval_child = self.alpha_beta_pruning(node.children[child], alpha, beta, False)
                 max_eval = max(max_eval, eval_child)
                 alpha = max(alpha, eval_child)
                 if beta <= alpha:
@@ -130,7 +142,7 @@ class A4SubmissionPlayer(GoEngine):
         else:
             min_eval = float('inf')
             for child in node.children:
-                eval_child = self.alpha_beta_pruning(child, alpha, beta, True)
+                eval_child = self.alpha_beta_pruning(node.children[child], alpha, beta, True)
                 min_eval = min(min_eval, eval_child)
                 beta = min(beta, eval_child)
                 if beta <= alpha:
@@ -143,16 +155,31 @@ class A4SubmissionPlayer(GoEngine):
 
     def simulate(self, board, simulations):
         """
-        Simulates a game from the current board position and returns the value of the game.
+        Simulates a game from the current board position and returns the value of the game
         """
+        value = 0
         for i in range(simulations):
-            self.board = board.copy()
-            while not self.board.is_terminal()[0]:
-                moves = GoBoardUtil.generate_legal_moves(self.board, self.board.current_player)
+            # get the result of random play to termination
+            board_copy = board.copy()
+            while not board_copy.is_terminal()[0]:
+                moves = GoBoardUtil.generate_legal_moves(board_copy, board_copy.current_player)
                 move = random.choice(moves)
-                self.board.play_move(move, self.board.current_player)
-                self.board.current_player = opponent(self.board.current_player)
-        return self.board.score()[0]
+                board_copy.play_move(move, board_copy.current_player)
+                board_copy.current_player = opponent(board_copy.current_player)
+
+            # board is terminal so get value: (win for black: 1), (win for white: -1), (draw: 0)
+            result = board_copy.is_terminal()[1]
+            if result == WHITE:
+                update = -1
+            elif result == BLACK:
+                update = 1
+            else:
+                update = 0
+
+            # update value
+            value += update/simulations
+
+        return value
 
 
 def run() -> None:
