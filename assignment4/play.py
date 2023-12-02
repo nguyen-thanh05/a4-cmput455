@@ -1,12 +1,12 @@
 import pexpect
 
 #Change the paths here to test different players
-player1='random_player/Ninuki-random.py'
+player1='max_growing_trees/Ninuki.py'
 player2='ab_player/Ninuki-ab.py'
 
 #Change the timeout to test different time limits
 #We will use a 60 second timeout for testing your submission
-timeout=1
+timeout=10
 
 #Change the number of games played by the script
 numGames = 10
