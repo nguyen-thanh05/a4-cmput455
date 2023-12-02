@@ -27,10 +27,10 @@ class GoBoardUtil(object):
         # TODO use generator instead.
         legal_moves: List[GO_POINT] = []
         # TODO use generator instead.
-        for move in moves:
+        """for move in moves:
             if board.is_legal(move, color):
-                legal_moves.append(move)
-        return legal_moves
+                legal_moves.append(move)"""
+        return moves
 
     @staticmethod
     def generate_random_move(board: GoBoard, color: GO_COLOR, 
