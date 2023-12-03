@@ -28,7 +28,7 @@ import TreeNode
 import bisect
 import Tree
 
-SIMULATION_COUNT = 500
+SIMULATION_COUNT = 200
 TIME_TO_SIMULATE = 52
 
 
