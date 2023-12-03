@@ -6,7 +6,7 @@ Cmput 455 sample code
 Written by Cmput 455 TA and Martin Mueller
 """
 from gtp_connection import GtpConnection, format_point, point_to_coord
-from board_base import DEFAULT_SIZE, GO_POINT, GO_COLOR
+from board_base import DEFAULT_SIZE, GO_POINT, GO_COLOR, NO_POINT
 from board import GoBoard
 from board_util import GoBoardUtil
 from engine import GoEngine
@@ -26,6 +26,7 @@ from board_base import (
 import numpy as np
 import TreeNode
 import bisect
+import Tree
 
 SIMULATION_COUNT = 5
 TIME_TO_SIMULATE = 10
@@ -39,6 +40,7 @@ class A4SubmissionPlayer(GoEngine):
         GoEngine.__init__(self, "Go0", 1.0)
         self.time_limit = 10
         self.solve_start_time = 0
+        self.game_tree = None
 
     def get_move(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """
@@ -54,14 +56,19 @@ class A4SubmissionPlayer(GoEngine):
             given_color = WHITE
         else:
             given_color = BLACK
+
         # build tree by creating root node and adding it to the leaves dictionary
-        root = TreeNode.Node()
-        root.board = board.copy()
-        root.color_to_play = opponent(given_color)
-        root.name = "root"
-        root.value = None
-        root.parent = None
-        leaves_to_expand.append(root)
+        if board.last2_move == NO_POINT:
+            root = TreeNode.Node()
+            self.game_tree = Tree.Tree()
+            root.board = board.copy()
+            root.color_to_play = opponent(given_color)
+            root.name = "root"
+            root.value = None
+            root.parent = None
+            leaves_to_expand.append(root)
+        else:
+            root, leaves_to_expand, leaves_to_simulate = self.game_tree.load_tree(board.copy())
 
         # start timer
         self.solve_start_time = time.time()
@@ -141,6 +148,7 @@ class A4SubmissionPlayer(GoEngine):
         for kiddo in root.children:
             print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
         print(f"Choosing {best_move}. ")
+        self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
 
     def alpha_beta_pruning(self, node: TreeNode, alpha, beta, maximizing_player: bool):
