@@ -28,8 +28,8 @@ import TreeNode
 import bisect
 import Tree
 
-SIMULATION_COUNT = 5
-TIME_TO_SIMULATE = 10
+SIMULATION_COUNT = 500
+TIME_TO_SIMULATE = 52
 
 
 class A4SubmissionPlayer(GoEngine):
@@ -58,7 +58,7 @@ class A4SubmissionPlayer(GoEngine):
             given_color = BLACK
 
         # build tree by creating root node and adding it to the leaves dictionary
-        if board.last2_move == NO_POINT:
+        if board.last2_move == NO_POINT or self.game_tree is None:
             root = TreeNode.Node()
             self.game_tree = Tree.Tree()
             root.board = board.copy()
