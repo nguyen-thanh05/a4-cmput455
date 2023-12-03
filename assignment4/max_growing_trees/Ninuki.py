@@ -27,8 +27,8 @@ import numpy as np
 import TreeNode
 import bisect
 
-SIMULATION_COUNT = 50
-TIME_TO_SIMULATE = 30
+SIMULATION_COUNT = 5
+TIME_TO_SIMULATE = 10
 
 
 class A4SubmissionPlayer(GoEngine):
