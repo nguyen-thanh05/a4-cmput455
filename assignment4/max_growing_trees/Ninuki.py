@@ -28,7 +28,7 @@ import TreeNode
 import bisect
 import Tree
 
-SIMULATION_COUNT = 300
+SIMULATION_COUNT = 50
 TIME_TO_SIMULATE = 52
 
 MID_GAME_THRESHOLD = 49  # number of open spaces at which to switch from opener to midgame
@@ -54,16 +54,16 @@ class A4SubmissionPlayer(GoEngine):
         """
 
         # count the number of open spaces
-        open_spaces = len(board.get_empty_points())
+        """open_spaces = len(board.get_empty_points())
         if open_spaces > MID_GAME_THRESHOLD:
             opener_move = self.opener(board, color)
             return opener_move
         elif open_spaces < ENDGAME_THRESHOLD:
             end_game_move = self.end_game(board, color)
             return end_game_move
-        else:
-            midgame_move = self.mid_game(board, color)
-            return midgame_move
+        else:"""
+        midgame_move = self.mid_game(board, color)
+        return midgame_move
 
     def opener(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Chooses a move from the dataset of opening moves.
@@ -151,8 +151,8 @@ class A4SubmissionPlayer(GoEngine):
                     moves = GoBoardUtil.generate_legal_moves(leaf.board, leaf.color_to_play)
                     # print(moves)
                     for move in moves:
-                        child = leaf.add_child(move, 0)
-                        child.name = str(move)
+                        child = leaf.add_child(str(move), 0)
+                        #child.name = str(move)
                         child.color_to_play = opponent(leaf.color_to_play)  # assign the colours of the children
                         child.board = leaf.board.copy()
                         child.board.play_move(move, child.color_to_play)
@@ -229,7 +229,10 @@ class A4SubmissionPlayer(GoEngine):
                 terminal = board_copy.is_terminal()
                 if terminal[0]:
                     break
-                moves = terminal[2]
+                moves = board_copy.heuristic_move_search(board_copy.current_player)
+                if len(moves) == 0:
+
+                    moves = terminal[2]
                 move = random.choice(moves)
                 board_copy.play_move(move, board_copy.current_player)
                 # board_copy.current_player = opponent(board_copy.current_player)

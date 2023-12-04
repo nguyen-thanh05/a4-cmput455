@@ -13,7 +13,7 @@ The board uses a 1-dimensional representation with padding
 
 import numpy as np
 from typing import List, Tuple
-
+from collections import deque
 from numpy import ndarray
 
 from board_base import (
@@ -34,7 +34,6 @@ from board_base import (
     GO_POINT,
 )
 
-
 """
 The GoBoard class implements a board and basic functions to play
 moves, check the end of the game, and count the acore at the end.
@@ -46,6 +45,105 @@ See coord_to_point for explanations of the array encoding.
 """
 
 
+class AhoCorasickNode:
+    def __init__(self):
+        self.children = {}
+        self.fail = None
+        self.output = []
+
+
+def build_ac_trie(patterns):
+    root = AhoCorasickNode()
+
+    for pattern in patterns:
+        node = root
+        for num in pattern:
+            if num not in node.children:
+                node.children[num] = AhoCorasickNode()
+            node = node.children[num]
+        node.output.append(pattern)
+
+    queue = deque()
+    for child in root.children.values():
+        queue.append(child)
+        child.fail = root
+
+    while queue:
+        current_node = queue.popleft()
+        for num, child in current_node.children.items():
+            queue.append(child)
+            fail_node = current_node.fail
+            while fail_node and num not in fail_node.children:
+                fail_node = fail_node.fail
+            if fail_node:
+                child.fail = fail_node.children.get(num, root)
+            else:
+                child.fail = root
+            child.output.extend(child.fail.output)
+
+    return root
+
+
+def aho_corasick_search(pos_array, ac_trie, patterns):
+    current_node = ac_trie
+    i = 0
+    output = []
+
+    for num in pos_array:
+        while num not in current_node.children and current_node.fail:
+            current_node = current_node.fail
+        if num in current_node.children:
+            current_node = current_node.children[num]
+        for j in current_node.output:
+            pattern_index = patterns.index(j)
+            start_pos = i - len(j) + 1
+            output.append([pattern_index, start_pos])
+
+        i += 1
+    if len(output) == 0:
+        return [[-1, -1]]
+    else:
+        return output
+
+
+IMMEDIATE_WIN_WHITE = [[WHITE, WHITE, WHITE, WHITE, EMPTY], [WHITE, WHITE, WHITE, EMPTY, WHITE],
+                       [WHITE, WHITE, EMPTY, WHITE, WHITE], [WHITE, EMPTY, WHITE, WHITE, WHITE],
+                       [EMPTY, WHITE, WHITE, WHITE, WHITE]]
+IMMEDIATE_WIN_WHITE_EMPTY_OFFSET = [[4], [3], [2], [1], [0]]
+
+IMMEDIATE_WIN_BLACK = [[BLACK, BLACK, BLACK, BLACK, EMPTY], [BLACK, BLACK, BLACK, EMPTY, BLACK],
+                       [BLACK, BLACK, EMPTY, BLACK, BLACK], [BLACK, EMPTY, BLACK, BLACK, BLACK],
+                       [EMPTY, BLACK, BLACK, BLACK, BLACK]]
+IMMEDIATE_WIN_BLACK_EMPTY_OFFSET = [[4], [3], [2], [1], [0]]
+
+WHITE_CAPTURE = [[WHITE, BLACK, BLACK, EMPTY],
+                 [EMPTY, BLACK, BLACK, WHITE]]
+WHITE_CAPTURE_EMPTY_OFFSET = [[3], [0]]
+
+BLACK_CAPTURE = [[BLACK, WHITE, WHITE, EMPTY],
+                 [EMPTY, WHITE, WHITE, BLACK]]
+BLACK_CAPTURE_EMPTY_OFFSET = [[3], [0]]
+
+OPEN_FOUR_WHITE = [[EMPTY, WHITE, WHITE, WHITE, EMPTY, EMPTY],
+                   [EMPTY, WHITE, WHITE, EMPTY, WHITE, EMPTY],
+                   [EMPTY, WHITE, EMPTY, WHITE, WHITE, EMPTY],
+                   [EMPTY, EMPTY, WHITE, WHITE, WHITE, EMPTY]]
+OPEN_FOUR_WHITE_EMPTY_OFFSET = [[4], [3], [2], [1]]
+
+OPEN_FOUR_BLACK = [[EMPTY, BLACK, BLACK, BLACK, EMPTY, EMPTY],
+                   [EMPTY, BLACK, BLACK, EMPTY, BLACK, EMPTY],
+                   [EMPTY, BLACK, EMPTY, BLACK, BLACK, EMPTY],
+                   [EMPTY, EMPTY, BLACK, BLACK, BLACK, EMPTY]]
+OPEN_FOUR_BLACK_EMPTY_OFFSET = [[4], [3], [2], [1]]
+
+immediate_win_white_trie = build_ac_trie(IMMEDIATE_WIN_WHITE)
+immediate_win_black_trie = build_ac_trie(IMMEDIATE_WIN_BLACK)
+white_capture_trie = build_ac_trie(WHITE_CAPTURE)
+black_capture_trie = build_ac_trie(BLACK_CAPTURE)
+open_four_white_trie = build_ac_trie(OPEN_FOUR_WHITE)
+open_four_black_trie = build_ac_trie(OPEN_FOUR_BLACK)
+
+
 class GoBoard(object):
     def __init__(self, size: int) -> None:
         """
@@ -53,6 +151,7 @@ class GoBoard(object):
         """
         assert 2 <= size <= MAXSIZE
         self.reset(size)
+        self.calculate_rows_cols_diags_positions()
         self.black_captures = 0
         self.white_captures = 0
         self.depth = 0
@@ -65,13 +164,13 @@ class GoBoard(object):
             self.black_captures += 2
         elif color == WHITE:
             self.white_captures += 2
-    
+
     def get_captures(self, color: GO_COLOR) -> None:
         if color == BLACK:
             return self.black_captures
         elif color == WHITE:
             return self.white_captures
-    
+
     def reset(self, size: int) -> None:
         """
         Creates a start state, an empty board with given size.
@@ -123,15 +222,15 @@ class GoBoard(object):
         """
         if point == PASS:
             return True
-        #board_copy: GoBoard = self.copy()
-        #can_play_move = board_copy.play_move(point, color)
-        #return can_play_move
+        # board_copy: GoBoard = self.copy()
+        # can_play_move = board_copy.play_move(point, color)
+        # return can_play_move
         return self.board[point] == EMPTY
 
     def end_of_game(self) -> tuple[bool, ndarray]:
         empty_points = self.get_empty_points()
         return empty_points.size == 0 or (self.last_move == PASS and self.last2_move == PASS), empty_points
-           
+
     def get_empty_points(self) -> np.ndarray:
         """
         Return:
@@ -153,7 +252,7 @@ class GoBoard(object):
         """
         for row in range(1, self.size + 1):
             start: int = self.row_start(row)
-            board_array[start : start + self.size] = EMPTY
+            board_array[start: start + self.size] = EMPTY
 
     def play_move(self, point: GO_POINT, color: GO_COLOR) -> bool:
         """
@@ -167,27 +266,28 @@ class GoBoard(object):
         self.last2_move = self.last_move
         self.last_move = point
         O = opponent(color)
-        offsets = [1, -1, self.NS, -self.NS, self.NS+1, -(self.NS+1), self.NS-1, -self.NS+1]
+        offsets = [1, -1, self.NS, -self.NS, self.NS + 1, -(self.NS + 1), self.NS - 1, -self.NS + 1]
         bcs = []
         wcs = []
         for offset in offsets:
-            if self.board[point+offset] == O and self.board[point+(offset*2)] == O and self.board[point+(offset*3)] == color:
-                self.board[point+offset] = EMPTY
-                self.board[point+(offset*2)] = EMPTY
+            if self.board[point + offset] == O and self.board[point + (offset * 2)] == O and self.board[
+                point + (offset * 3)] == color:
+                self.board[point + offset] = EMPTY
+                self.board[point + (offset * 2)] = EMPTY
                 if color == BLACK:
                     self.black_captures += 2
-                    bcs.append(point+offset)
-                    bcs.append(point+(offset*2))
+                    bcs.append(point + offset)
+                    bcs.append(point + (offset * 2))
                 else:
                     self.white_captures += 2
-                    wcs.append(point+offset)
-                    wcs.append(point+(offset*2))
+                    wcs.append(point + offset)
+                    wcs.append(point + (offset * 2))
         self.depth += 1
         self.black_capture_history.append(bcs)
         self.white_capture_history.append(wcs)
         self.move_history.append(point)
         return True
-    
+
     def undo(self):
         self.board[self.move_history.pop()] = EMPTY
         self.current_player = opponent(self.current_player)
@@ -258,9 +358,9 @@ class GoBoard(object):
                     num_found += 1
                 if num_found >= 5:
                     return c
-        
+
         return EMPTY
-    
+
     def detect_five_in_a_row(self) -> GO_COLOR:
         """
         Returns BLACK or WHITE if any five in a row is detected for the color
@@ -282,7 +382,7 @@ class GoBoard(object):
                 num_found += 1
             if num_found >= 5:
                 return c
-        
+
         return EMPTY
 
     def is_terminal(self):
@@ -324,3 +424,147 @@ class GoBoard(object):
         state += str(self.black_captures)
         state += str(self.white_captures)
         return state
+
+    def calculate_rows_cols_diags_positions(self):
+        if self.size < 4:
+            return
+            # precalculate all rows, cols, and diags for 5-in-a-row detection
+        self.rows = []
+        self.cols = []
+        for i in range(1, self.size + 1):
+            current_row = []
+            start = self.row_start(i)
+            for pt in range(start, start + self.size):
+                current_row.append(pt)
+            self.rows.append(current_row)
+
+            start = self.row_start(1) + i - 1
+            current_col = []
+            for pt in range(start, self.row_start(self.size) + i, self.NS):
+                current_col.append(pt)
+            self.cols.append(current_col)
+
+        self.diags = []
+        # diag towards SE, starting from first row (1,1) moving right to (1,n)
+        start = self.row_start(1)
+        for i in range(start, start + self.size):
+            diag_SE = []
+            pt = i
+            while self.get_color(pt) == EMPTY:
+                diag_SE.append(pt)
+                pt += self.NS + 1
+            if len(diag_SE) >= 4:
+                self.diags.append(diag_SE)
+        # diag towards SE and NE, starting from (2,1) downwards to (n,1)
+        for i in range(start + self.NS, self.row_start(self.size) + 1, self.NS):
+            diag_SE = []
+            diag_NE = []
+            pt = i
+            while self.get_color(pt) == EMPTY:
+                diag_SE.append(pt)
+                pt += self.NS + 1
+            pt = i
+            while self.get_color(pt) == EMPTY:
+                diag_NE.append(pt)
+                pt += -1 * self.NS + 1
+            if len(diag_SE) >= 4:
+                self.diags.append(diag_SE)
+            if len(diag_NE) >= 4:
+                self.diags.append(diag_NE)
+        # diag towards NE, starting from (n,2) moving right to (n,n)
+        start = self.row_start(self.size) + 1
+        for i in range(start, start + self.size):
+            diag_NE = []
+            pt = i
+            while self.get_color(pt) == EMPTY:
+                diag_NE.append(pt)
+                pt += -1 * self.NS + 1
+            if len(diag_NE) >= 4:
+                self.diags.append(diag_NE)
+        assert len(self.rows) == self.size
+        assert len(self.cols) == self.size
+        assert len(self.diags) == (2 * (self.size - 4) + 1) * 2
+
+    def pattern_search(self, patterns, offsets, trie):
+        moves = []
+        for position_array in self.rows + self.cols + self.diags:
+            search_output = aho_corasick_search(self.board[position_array], trie, patterns)
+            for item in search_output:
+                if item[0] != -1:  # A match was found
+                    for index in offsets[item[0]]:
+                        moves.append(position_array[item[1] + index])
+        return moves
+
+    def immediate_win_search(self, colour):
+        immediate_win_moves = []
+        if colour == WHITE:
+            immediate_win_moves += self.pattern_search(IMMEDIATE_WIN_WHITE, IMMEDIATE_WIN_WHITE_EMPTY_OFFSET,
+                                                       immediate_win_white_trie)
+            if self.white_captures >= 8:
+                immediate_win_moves += self.pattern_search(WHITE_CAPTURE, WHITE_CAPTURE_EMPTY_OFFSET,
+                                                           white_capture_trie)
+        elif colour == BLACK:
+            immediate_win_moves += self.pattern_search(IMMEDIATE_WIN_BLACK, IMMEDIATE_WIN_BLACK_EMPTY_OFFSET,
+                                                       immediate_win_black_trie)
+            if self.black_captures >= 8:
+                immediate_win_moves += self.pattern_search(BLACK_CAPTURE, BLACK_CAPTURE_EMPTY_OFFSET,
+                                                           black_capture_trie)
+        return immediate_win_moves
+
+    def block_opponent_win_search(self, colour):
+        opponent_colour = opponent(colour)
+        opponent_win_moves = self.immediate_win_search(opponent_colour)
+        block_moves = []
+
+        # Block 4 in a row by capturing stones
+        capturing_moves = self.capture_search(colour)
+
+        for capture in capturing_moves:
+            self.play_move(capture, colour)
+            new_opponent_win = self.immediate_win_search(opponent_colour)
+            if len(opponent_win_moves) > len(new_opponent_win):
+                block_moves.append(capture)
+            self.undo()
+
+        # Prevent opponent from capturing 10 stones
+        if colour == WHITE:
+            opp_captures = self.black_captures
+        elif colour == BLACK:
+            opp_captures = self.white_captures
+        if opp_captures >= 8:
+            opp_capture_moves = self.capture_search(opponent_colour)
+            if len(opp_capture_moves) > 0:
+                block_moves += opp_capture_moves
+
+        return list(set(block_moves + opponent_win_moves))
+
+    def open_four_search(self, colour):
+        open_four_moves = []
+        if colour == WHITE:
+            open_four_moves += self.pattern_search(OPEN_FOUR_WHITE, OPEN_FOUR_WHITE_EMPTY_OFFSET,
+                                                   open_four_white_trie)
+        elif colour == BLACK:
+            open_four_moves += self.pattern_search(OPEN_FOUR_BLACK, OPEN_FOUR_BLACK_EMPTY_OFFSET,
+                                                   open_four_black_trie)
+        return open_four_moves
+
+    def capture_search(self, colour):
+        capture_moves = []
+        if colour == WHITE:
+            return self.pattern_search(WHITE_CAPTURE, WHITE_CAPTURE_EMPTY_OFFSET, white_capture_trie)
+        elif colour == BLACK:
+            return self.pattern_search(BLACK_CAPTURE, WHITE_CAPTURE_EMPTY_OFFSET, black_capture_trie)
+        return capture_moves
+
+    def heuristic_move_search(self, colour):
+        moves = []
+        immediate_win = self.immediate_win_search(colour)
+        block_opponent_win = self.block_opponent_win_search(colour)
+        open_four = self.open_four_search(colour)
+
+        moves += immediate_win
+        moves += block_opponent_win
+        #moves += open_four
+
+        return list(set(moves))
+
