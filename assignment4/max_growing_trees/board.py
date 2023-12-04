@@ -14,6 +14,8 @@ The board uses a 1-dimensional representation with padding
 import numpy as np
 from typing import List, Tuple
 
+from numpy import ndarray
+
 from board_base import (
     board_array_size,
     coord_to_point,
@@ -126,8 +128,9 @@ class GoBoard(object):
         #return can_play_move
         return self.board[point] == EMPTY
 
-    def end_of_game(self) -> bool:
-        return self.get_empty_points().size == 0 or (self.last_move == PASS and self.last2_move == PASS)
+    def end_of_game(self) -> tuple[bool, ndarray]:
+        empty_points = self.get_empty_points()
+        return empty_points.size == 0 or (self.last_move == PASS and self.last2_move == PASS), empty_points
            
     def get_empty_points(self) -> np.ndarray:
         """
@@ -284,24 +287,26 @@ class GoBoard(object):
 
     def is_terminal(self):
         """
-        Returns: is_terminal, winner
+        Returns: is_terminal, winner, open_points
         If the result is a draw, winner = EMPTY
         """
         winner = self.detect_five_in_a_row()
         if winner != EMPTY:
             # print("5 in a row detected")
-            return True, winner
+            return True, winner, None
         elif self.get_captures(BLACK) >= 10:
             # print("10 captures detected")
-            return True, BLACK
+            return True, BLACK, None
         elif self.get_captures(WHITE) >= 10:
             # print("10 captures detected")
-            return True, WHITE
-        elif self.end_of_game():
-            # print("end of game")
-            return True, EMPTY
+            return True, WHITE, None
         else:
-            return False, EMPTY
+            e_o_g = self.end_of_game()
+            if e_o_g[0]:
+                # print("end of game")
+                return True, EMPTY, None
+            else:
+                return False, EMPTY, e_o_g[1]
 
     def heuristic_eval(self):
         """
