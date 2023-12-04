@@ -28,8 +28,11 @@ import TreeNode
 import bisect
 import Tree
 
-SIMULATION_COUNT = 200
+SIMULATION_COUNT = 300
 TIME_TO_SIMULATE = 52
+
+MID_GAME_THRESHOLD = 49  # number of open spaces at which to switch from opener to midgame
+ENDGAME_THRESHOLD = 0  # number of open spaces at which to switch from midgame to endgame
 
 
 class A4SubmissionPlayer(GoEngine):
@@ -44,7 +47,31 @@ class A4SubmissionPlayer(GoEngine):
 
     def get_move(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """
-        Uses the maximum allowable time to determine the best move by simulating and then using alpha-beta pruning.
+        Uses the maximum allowable time to determine the best move. Has 3 modes determined by the number of open spaces:
+        1. Opener: if there are more than 45 open spaces, then choose from the dataset of opening moves
+        2. Midgame: if there are between 45 and 15 open spaces, then use MCTS/A-B to determine the best move
+        3. Endgame: if there are less than 15 open spaces, then use alpha-beta pruning to determine the best move
+        """
+
+        # count the number of open spaces
+        open_spaces = len(board.get_empty_points())
+        if open_spaces > MID_GAME_THRESHOLD:
+            opener_move = self.opener(board, color)
+            return opener_move
+        elif open_spaces < ENDGAME_THRESHOLD:
+            end_game_move = self.end_game(board, color)
+            return end_game_move
+        else:
+            midgame_move = self.mid_game(board, color)
+            return midgame_move
+
+    def opener(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
+        """ Chooses a move from the dataset of opening moves.
+        """
+        pass
+
+    def mid_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
+        """ Uses MCTS/A-B to determine the best move.
         """
 
         # leaves_to_simulate is a list of leaf nodes that have not been simulated yet
@@ -151,6 +178,11 @@ class A4SubmissionPlayer(GoEngine):
         self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
 
+    def end_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
+        """ Uses alpha-beta pruning to determine the best move.
+        """
+        pass
+
     def alpha_beta_pruning(self, node: TreeNode, alpha, beta, maximizing_player: bool):
         """
         Uses alpha-beta pruning to determine the value of all important nodes.
@@ -191,14 +223,19 @@ class A4SubmissionPlayer(GoEngine):
         for i in range(simulations):
             # get the result of random play to termination
             board_copy = board.copy()
-            while not board_copy.is_terminal()[0]:
-                moves = GoBoardUtil.generate_legal_moves(board_copy, board_copy.current_player)
+            terminal = None
+
+            while True:
+                terminal = board_copy.is_terminal()
+                if terminal[0]:
+                    break
+                moves = terminal[2]
                 move = random.choice(moves)
                 board_copy.play_move(move, board_copy.current_player)
                 # board_copy.current_player = opponent(board_copy.current_player)
 
             # board is terminal so get value: (win for black: 1), (win for white: -1), (draw: 0)
-            result = board_copy.is_terminal()[1]
+            result = terminal[1]
             # print(f" simulation {i}'s result was: {result}")
 
             if result == WHITE:
