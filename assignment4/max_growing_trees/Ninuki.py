@@ -25,7 +25,6 @@ from board_base import (
 )
 import numpy as np
 import TreeNode
-import bisect
 import Tree
 
 SIMULATION_COUNT = 400  # number of simulations to run for each leaf node
@@ -157,7 +156,7 @@ class A4SubmissionPlayer(GoEngine):
                     self.simulation_table[key] = leaf.value
                 # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
                 # print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
-                bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
+                self.insort_right(leaves_to_expand, leaf, key=lambda node: node.value)
             else:  # else there are no leaves to simulate, so expand
                 if leaves_to_expand:  # if there are leaves to expand, then expand
                     if leaves_to_expand[0].color_to_play == given_color:  # if it is our turn to play, then expand the leaf with the highest value
@@ -194,6 +193,43 @@ class A4SubmissionPlayer(GoEngine):
         # print(f"Choosing {best_move}. ")
         self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
+
+    def bisect_right(self, a, x, lo=0, hi=None, key=None):
+        if lo < 0:
+            raise ValueError('lo must be non-negative')
+        if hi is None:
+            hi = len(a)
+        # Note, the comparison uses "<" to match the
+        # __lt__() logic in list.sort() and in heapq.
+        if key is None:
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if x < a[mid]:
+                    hi = mid
+                else:
+                    lo = mid + 1
+        else:
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if x < key(a[mid]):
+                    hi = mid
+                else:
+                    lo = mid + 1
+        return lo
+
+    def insort_right(self, a, x, lo=0, hi=None, *, key=None):
+        """Insert item x in list a, and keep it sorted assuming a is sorted.
+
+        If x is already in a, insert it to the right of the rightmost x.
+
+        Optional args lo (default 0) and hi (default len(a)) bound the
+        slice of a to be searched.
+        """
+        if key is None:
+            lo = self.bisect_right(a, x, lo, hi)
+        else:
+            lo = self.bisect_right(a, key(x), lo, hi, key=key)
+        a.insert(lo, x)
 
     def end_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Uses alpha-beta pruning to determine the best move.
