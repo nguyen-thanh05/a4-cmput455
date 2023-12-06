@@ -324,3 +324,7 @@ class GoBoard(object):
         state += str(self.black_captures)
         state += str(self.white_captures)
         return state
+
+    def state_to_key(self):
+        state = self.board.tobytes()
+        return state, self.current_player, self.black_captures, self.white_captures
