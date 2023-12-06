@@ -121,7 +121,7 @@ class A4SubmissionPlayer(GoEngine):
         # repeat until the timer has exceeded TIME_TO_SIMULATE
 
         sim_count = max(100, 800-((len(board.get_empty_points())//10)*100))  # increase simulations as game progresses
-        print(f"sim_count is {sim_count}.  ")
+        # print(f"sim_count is {sim_count}.  ")
 
         while current_time - self.solve_start_time < TIME_TO_SIMULATE:
             current_time = time.time()
@@ -178,9 +178,9 @@ class A4SubmissionPlayer(GoEngine):
             best_move = int(root.get_max_child().name)
         else:
             best_move = int(root.get_min_child().name)
-        for kiddo in root.children:
-            print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
-        print(f"Choosing {best_move}. ")
+        # for kiddo in root.children:
+        #     print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
+        # print(f"Choosing {best_move}. ")
         self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
 
