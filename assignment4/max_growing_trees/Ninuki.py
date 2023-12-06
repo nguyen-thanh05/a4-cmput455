@@ -29,9 +29,10 @@ import Tree
 
 SIMULATION_COUNT = 400  # number of simulations to run for each leaf node
 TIME_TO_SIMULATE = 55  # number of seconds to simulate for
-MID_MOVE = 36  # board square to play in the middle of the board
+MID_MOVE = [43, 44, 45, 35, 37, 27, 28, 29]  # board square to play in the middle of the board
+CENTER_MOVE = 36
 
-MID_GAME_THRESHOLD = 48  # number of open spaces at which to switch from opener to midgame
+MID_GAME_THRESHOLD = 47  # number of open spaces at which to switch from opener to midgame
 ENDGAME_THRESHOLD = 0  # number of open spaces at which to switch from midgame to endgame
 
 
@@ -55,9 +56,11 @@ class A4SubmissionPlayer(GoEngine):
         """
 
         # count the number of open spaces
-        open_spaces = len(board.get_empty_points())
+        available_moves = board.get_empty_points()
+        open_spaces = len(available_moves)
+
         if open_spaces > MID_GAME_THRESHOLD:
-            opener_move = self.opener(board, color)
+            opener_move = self.opener(board, color, available_moves)
             return opener_move
         elif open_spaces < ENDGAME_THRESHOLD:
             """end_game_move = self.end_game(board, color)
@@ -68,11 +71,17 @@ class A4SubmissionPlayer(GoEngine):
             midgame_move = self.mid_game(board, color)
             return midgame_move
 
-    def opener(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
+    def opener(self, board: GoBoard, color: GO_COLOR, available_moves) -> GO_POINT:
         """ Chooses a move from the dataset of opening moves.
         """
         self.mid_game(board, color)
-        best_move = MID_MOVE
+        if CENTER_MOVE in available_moves:
+            return format_point(point_to_coord(CENTER_MOVE, board.size)).lower()
+        else:
+            while True:
+                best_move = random.choice(MID_MOVE)
+                if best_move in available_moves:
+                    break
         return format_point(point_to_coord(best_move, board.size)).lower()
 
     def mid_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
