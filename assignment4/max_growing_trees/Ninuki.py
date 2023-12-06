@@ -28,10 +28,11 @@ import TreeNode
 import bisect
 import Tree
 
-SIMULATION_COUNT = 300
-TIME_TO_SIMULATE = 52
+SIMULATION_COUNT = 400  # number of simulations to run for each leaf node
+TIME_TO_SIMULATE = 55  # number of seconds to simulate for
+MID_MOVE = 36  # board square to play in the middle of the board
 
-MID_GAME_THRESHOLD = 49  # number of open spaces at which to switch from opener to midgame
+MID_GAME_THRESHOLD = 48  # number of open spaces at which to switch from opener to midgame
 ENDGAME_THRESHOLD = 0  # number of open spaces at which to switch from midgame to endgame
 
 
@@ -68,7 +69,9 @@ class A4SubmissionPlayer(GoEngine):
     def opener(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Chooses a move from the dataset of opening moves.
         """
-        pass
+        self.mid_game(board, color)
+        best_move = MID_MOVE
+        return format_point(point_to_coord(best_move, board.size)).lower()
 
     def mid_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Uses MCTS/A-B to determine the best move.
@@ -117,6 +120,9 @@ class A4SubmissionPlayer(GoEngine):
         # insert the new leaf nodes into leaves_to_simulate so that leaves_to_simulate is ordered by leaf node value
         # repeat until the timer has exceeded TIME_TO_SIMULATE
 
+        sim_count = max(100, 800-((len(board.get_empty_points())//10)*100))  # increase simulations as game progresses
+        # print(f"sim_count is {sim_count}.  ")
+
         while current_time - self.solve_start_time < TIME_TO_SIMULATE:
             current_time = time.time()
             # print(f"start time is {self.solve_start_time} ")
@@ -137,7 +143,7 @@ class A4SubmissionPlayer(GoEngine):
                     else:
                         leaf.value = 0
                     continue
-                leaf.value = self.simulate(leaf.board, SIMULATION_COUNT)
+                leaf.value = self.simulate(leaf.board, sim_count)
                 # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
                 # print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
                 bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
@@ -172,9 +178,9 @@ class A4SubmissionPlayer(GoEngine):
             best_move = int(root.get_max_child().name)
         else:
             best_move = int(root.get_min_child().name)
-        for kiddo in root.children:
-            print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
-        print(f"Choosing {best_move}. ")
+        # for kiddo in root.children:
+        #     print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
+        # print(f"Choosing {best_move}. ")
         self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
 
