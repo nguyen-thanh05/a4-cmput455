@@ -28,8 +28,12 @@ import TreeNode
 import bisect
 import Tree
 
+
+import MCTS
+import MCTSNode
+
 SIMULATION_COUNT = 300
-TIME_TO_SIMULATE = 52
+TIME_TO_SIMULATE = 58
 
 MID_GAME_THRESHOLD = 49  # number of open spaces at which to switch from opener to midgame
 ENDGAME_THRESHOLD = 0  # number of open spaces at which to switch from midgame to endgame
@@ -44,6 +48,7 @@ class A4SubmissionPlayer(GoEngine):
         self.time_limit = 10
         self.solve_start_time = 0
         self.game_tree = None
+        self.mcts = None
 
     def get_move(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """
@@ -54,7 +59,7 @@ class A4SubmissionPlayer(GoEngine):
         """
 
         # count the number of open spaces
-        open_spaces = len(board.get_empty_points())
+        """open_spaces = len(board.get_empty_points())
         if open_spaces > MID_GAME_THRESHOLD:
             opener_move = self.opener(board, color)
             return opener_move
@@ -64,119 +69,34 @@ class A4SubmissionPlayer(GoEngine):
         else:
             midgame_move = self.mid_game(board, color)
             return midgame_move
-
+"""
+        return self.mid_game(board, color)
     def opener(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Chooses a move from the dataset of opening moves.
         """
         pass
 
     def mid_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
-        """ Uses MCTS/A-B to determine the best move.
-        """
+        """MCTS"""
 
-        # leaves_to_simulate is a list of leaf nodes that have not been simulated yet
-        # leaves_to_expand is an ordered list of tuples (leaf node, leaf node value), ordered by leaf node value
-        leaves_to_simulate = []
-        leaves_to_expand = []
 
-        if color == "w":
-            given_color = WHITE
+        if color == "b":
+            color = BLACK
         else:
-            given_color = BLACK
+            color = WHITE
 
-        # build tree by creating root node and adding it to the leaves dictionary
-        if board.last2_move == NO_POINT or self.game_tree is None:
-            root = TreeNode.Node()
-            self.game_tree = Tree.Tree()
-            root.board = board.copy()
-            root.color_to_play = opponent(given_color)
-            root.name = "root"
-            root.value = None
-            root.parent = None
-            leaves_to_expand.append(root)
+        if board.last_move == NO_POINT or board.last2_move == NO_POINT:
+            root = MCTSNode.Node(None, None)
+            root.board = board
+            root.colour = opponent(color)
+            self.mcts = MCTS.MCTS(root)
         else:
-            root, leaves_to_expand, leaves_to_simulate = self.game_tree.load_tree(board.copy())
+            self.mcts.tree_reuse(board.last_move, board.last2_move)
+        current_time = time.time()
+        while time.time() - current_time < TIME_TO_SIMULATE:
+            self.mcts.run()
 
-        # start timer
-        self.solve_start_time = time.time()
-        current_time = self.solve_start_time
-
-        # while the timer has not exceeded TIME_TO_SIMULATE:
-        # if the number of leaves to simulate is greater than 0:
-        # ----- simulate -----
-        # pop a leaf node from leaves_to_simulate
-        # if the leaf node is terminal, update the leaf node's value and continue without expanding
-        # simulate the game from the leaf node's board position
-        # update the leaf node's value
-        # insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by leaf node value
-        # repeat until the number of leaves to simulate is 0
-        # ----- expand -----
-        # pop the leaf node with the highest value from leaves_to_expand if it is our turn to play, else pop the leaf
-        # node with the lowest value
-        # expand the leaf node by adding all legal moves to the tree
-        # insert the new leaf nodes into leaves_to_simulate so that leaves_to_simulate is ordered by leaf node value
-        # repeat until the timer has exceeded TIME_TO_SIMULATE
-
-        while current_time - self.solve_start_time < TIME_TO_SIMULATE:
-            current_time = time.time()
-            # print(f"start time is {self.solve_start_time} ")
-            # print(f"current time is {current_time} ")
-            # print(f"elapsed time is {current_time - self.solve_start_time} ")
-            # print(f"leaves to expand is:", leaves_to_expand)
-            # print(f"leaves to simulate is", leaves_to_simulate)
-            if leaves_to_simulate:  # if there are leaves to simulate, then simulate
-                leaf = leaves_to_simulate.pop()
-                # print(f"now simulating from {leaf.name}")
-                if leaf.board.is_terminal()[0]:
-                    # print(f"leaf {leaf.name} is terminal, not adding to expand")
-                    result = leaf.board.is_terminal()[1]
-                    if result == WHITE:
-                        leaf.value = -1
-                    elif result == BLACK:
-                        leaf.value = 1
-                    else:
-                        leaf.value = 0
-                    continue
-                leaf.value = self.simulate(leaf.board, SIMULATION_COUNT)
-                # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
-                # print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
-                bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
-            else:  # else there are no leaves to simulate, so expand
-                if leaves_to_expand:  # if there are leaves to expand, then expand
-                    if leaves_to_expand[0].color_to_play == given_color:  # if it is our turn to play, then expand the leaf with the highest value
-                        leaf = leaves_to_expand.pop()
-                    else:  # else it is our opponent's turn to play, so expand the leaf with the lowest value
-                        leaf = leaves_to_expand.pop(0)
-                    # print(f"no leaf to simulate, so expanding {leaf.name}")
-                    moves = GoBoardUtil.generate_legal_moves(leaf.board, leaf.color_to_play)
-                    # print(moves)
-                    for move in moves:
-                        child = leaf.add_child(move, 0)
-                        child.name = str(move)
-                        child.color_to_play = opponent(leaf.color_to_play)  # assign the colours of the children
-                        child.board = leaf.board.copy()
-                        child.board.play_move(move, child.color_to_play)
-                        leaves_to_simulate.append(child)
-                else:  # else there are no leaves to expand, so break
-                    break
-
-        # once the timer has exceeded TIME_TO_SIMULATE, use alpha-beta pruning to update the value of
-        # nodes in the tree
-
-        if given_color == BLACK:
-            maximizing_player = True
-        else:
-            maximizing_player = False
-        self.alpha_beta_pruning(root, float('-inf'), float('inf'), maximizing_player)
-        if maximizing_player:
-            best_move = int(root.get_max_child().name)
-        else:
-            best_move = int(root.get_min_child().name)
-        for kiddo in root.children:
-            print(f"{root.children[kiddo].name}'s value is {root.children[kiddo].value}. ")
-        print(f"Choosing {best_move}. ")
-        self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
-        return format_point(point_to_coord(best_move, board.size)).lower()
+        return format_point(point_to_coord(self.mcts.get_root().get_max_child().move, board.size)).lower()
 
     def end_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Uses alpha-beta pruning to determine the best move.
