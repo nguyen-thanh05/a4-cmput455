@@ -45,6 +45,7 @@ class A4SubmissionPlayer(GoEngine):
         self.time_limit = 10
         self.solve_start_time = 0
         self.game_tree = None
+        self.simulation_table = {}
 
     def get_move(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """
@@ -60,8 +61,10 @@ class A4SubmissionPlayer(GoEngine):
             opener_move = self.opener(board, color)
             return opener_move
         elif open_spaces < ENDGAME_THRESHOLD:
-            end_game_move = self.end_game(board, color)
-            return end_game_move
+            """end_game_move = self.end_game(board, color)
+            return end_game_move"""
+            midgame_move = self.mid_game(board, color)
+            return midgame_move
         else:
             midgame_move = self.mid_game(board, color)
             return midgame_move
@@ -143,7 +146,15 @@ class A4SubmissionPlayer(GoEngine):
                     else:
                         leaf.value = 0
                     continue
-                leaf.value = self.simulate(leaf.board, sim_count)
+
+                key = leaf.board.state_to_key()
+                if key in self.simulation_table:
+                    sim_value = self.simulate(leaf.board, int(sim_count//4))
+                    leaf.value = (self.simulation_table[key] + sim_value)/2
+                    self.simulation_table[key] = leaf.value
+                else:
+                    leaf.value = self.simulate(leaf.board, sim_count)
+                    self.simulation_table[key] = leaf.value
                 # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
                 # print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
                 bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
@@ -203,7 +214,7 @@ class A4SubmissionPlayer(GoEngine):
                 eval_child = self.alpha_beta_pruning(node.children[child], alpha, beta, False)
                 max_eval = max(max_eval, eval_child)
                 alpha = max(alpha, eval_child)
-                if beta <= alpha:
+                if eval_child >= beta:
                     break
             node.value = max_eval
             return max_eval
@@ -213,7 +224,7 @@ class A4SubmissionPlayer(GoEngine):
                 eval_child = self.alpha_beta_pruning(node.children[child], alpha, beta, True)
                 min_eval = min(min_eval, eval_child)
                 beta = min(beta, eval_child)
-                if beta <= alpha:
+                if eval_child <= alpha:
                     break
             node.value = min_eval
             return min_eval

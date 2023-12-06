@@ -109,13 +109,13 @@ class GoBoard(object):
         b.move_history = self.move_history.copy()
         return b
 
-    def get_color(self, point: GO_POINT) -> GO_COLOR:
+    def get_color(self, point: GO_POINT):
         return self.board[point]
 
-    def pt(self, row: int, col: int) -> GO_POINT:
+    def pt(self, row: int, col: int):
         return coord_to_point(row, col, self.size)
 
-    def is_legal(self, point: GO_POINT, color: GO_COLOR) -> bool:
+    def is_legal(self, point: GO_POINT, color: GO_COLOR):
         """
         Check whether it is legal for color to play on point
         This method tries to play the move on a temporary copy of the board.
@@ -128,11 +128,11 @@ class GoBoard(object):
         #return can_play_move
         return self.board[point] == EMPTY
 
-    def end_of_game(self) -> tuple[bool, ndarray]:
+    def end_of_game(self):
         empty_points = self.get_empty_points()
         return empty_points.size == 0 or (self.last_move == PASS and self.last2_move == PASS), empty_points
            
-    def get_empty_points(self) -> np.ndarray:
+    def get_empty_points(self):
         """
         Return:
             The empty points on the board
@@ -144,7 +144,7 @@ class GoBoard(object):
         assert row <= self.size
         return row * self.NS + 1
 
-    def _initialize_empty_points(self, board_array: np.ndarray) -> None:
+    def _initialize_empty_points(self, board_array: np.ndarray):
         """
         Fills points on the board with EMPTY
         Argument
@@ -155,7 +155,7 @@ class GoBoard(object):
             start: int = self.row_start(row)
             board_array[start : start + self.size] = EMPTY
 
-    def play_move(self, point: GO_POINT, color: GO_COLOR) -> bool:
+    def play_move(self, point: GO_POINT, color: GO_COLOR):
         """
         Tries to play a move of color on the point.
         Returns whether or not the point was empty.
@@ -205,7 +205,7 @@ class GoBoard(object):
         if len(self.move_history) > 1:
             self.last2_move = self.move_history[-2]
 
-    def neighbors_of_color(self, point: GO_POINT, color: GO_COLOR) -> List:
+    def neighbors_of_color(self, point: GO_POINT, color: GO_COLOR):
         """ List of neighbors of point of given color """
         nbc: List[GO_POINT] = []
         for nb in self._neighbors(point):
@@ -213,7 +213,7 @@ class GoBoard(object):
                 nbc.append(nb)
         return nbc
 
-    def _neighbors(self, point: GO_POINT) -> List:
+    def _neighbors(self, point: GO_POINT):
         """ List of all four neighbors of the point """
         return [point - 1, point + 1, point - self.NS, point + self.NS]
 
@@ -224,7 +224,7 @@ class GoBoard(object):
                 point + self.NS - 1,
                 point + self.NS + 1]
 
-    def last_board_moves(self) -> List:
+    def last_board_moves(self):
         """
         Get the list of last_move and second last move.
         Only include moves on the board (not NO_POINT, not PASS).
@@ -236,7 +236,7 @@ class GoBoard(object):
             board_moves.append(self.last2_move)
         return board_moves
 
-    def full_board_detect_five_in_a_row(self) -> GO_COLOR:
+    def full_board_detect_five_in_a_row(self):
         """
         Returns BLACK or WHITE if any five in a row is detected for the color
         EMPTY otherwise.
@@ -261,7 +261,7 @@ class GoBoard(object):
         
         return EMPTY
     
-    def detect_five_in_a_row(self) -> GO_COLOR:
+    def detect_five_in_a_row(self):
         """
         Returns BLACK or WHITE if any five in a row is detected for the color
         EMPTY otherwise.
@@ -324,3 +324,7 @@ class GoBoard(object):
         state += str(self.black_captures)
         state += str(self.white_captures)
         return state
+
+    def state_to_key(self):
+        state = self.board.tobytes()
+        return state, self.current_player, self.black_captures, self.white_captures
