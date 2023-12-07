@@ -25,14 +25,14 @@ from board_base import (
 )
 import numpy as np
 import TreeNode
-import bisect
 import Tree
 
 SIMULATION_COUNT = 400  # number of simulations to run for each leaf node
 TIME_TO_SIMULATE = 55  # number of seconds to simulate for
-MID_MOVE = 36  # board square to play in the middle of the board
+MID_MOVE = [43, 44, 45, 35, 37, 27, 28, 29]  # board square to play in the middle of the board
+CENTER_MOVE = 36
 
-MID_GAME_THRESHOLD = 48  # number of open spaces at which to switch from opener to midgame
+MID_GAME_THRESHOLD = 47  # number of open spaces at which to switch from opener to midgame
 ENDGAME_THRESHOLD = 0  # number of open spaces at which to switch from midgame to endgame
 
 
@@ -56,9 +56,11 @@ class A4SubmissionPlayer(GoEngine):
         """
 
         # count the number of open spaces
-        open_spaces = len(board.get_empty_points())
+        available_moves = board.get_empty_points()
+        open_spaces = len(available_moves)
+
         if open_spaces > MID_GAME_THRESHOLD:
-            opener_move = self.opener(board, color)
+            opener_move = self.opener(board, color, available_moves)
             return opener_move
         elif open_spaces < ENDGAME_THRESHOLD:
             """end_game_move = self.end_game(board, color)
@@ -69,11 +71,17 @@ class A4SubmissionPlayer(GoEngine):
             midgame_move = self.mid_game(board, color)
             return midgame_move
 
-    def opener(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
+    def opener(self, board: GoBoard, color: GO_COLOR, available_moves) -> GO_POINT:
         """ Chooses a move from the dataset of opening moves.
         """
         self.mid_game(board, color)
-        best_move = MID_MOVE
+        if CENTER_MOVE in available_moves:
+            return format_point(point_to_coord(CENTER_MOVE, board.size)).lower()
+        else:
+            while True:
+                best_move = random.choice(MID_MOVE)
+                if best_move in available_moves:
+                    break
         return format_point(point_to_coord(best_move, board.size)).lower()
 
     def mid_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
@@ -157,7 +165,7 @@ class A4SubmissionPlayer(GoEngine):
                     self.simulation_table[key] = leaf.value
                 # efficiently insert the leaf node into leaves_to_expand so that leaves_to_expand is ordered by value
                 # print(f"now inserting {leaf.name} with value {leaf.value}into leaves_to_expand")
-                bisect.insort(leaves_to_expand, leaf, key=lambda node: node.value)
+                self.insort_right(leaves_to_expand, leaf, key=lambda node: node.value)
             else:  # else there are no leaves to simulate, so expand
                 if leaves_to_expand:  # if there are leaves to expand, then expand
                     if leaves_to_expand[0].color_to_play == given_color:  # if it is our turn to play, then expand the leaf with the highest value
@@ -194,6 +202,43 @@ class A4SubmissionPlayer(GoEngine):
         # print(f"Choosing {best_move}. ")
         self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
+
+    def bisect_right(self, a, x, lo=0, hi=None, key=None):
+        if lo < 0:
+            raise ValueError('lo must be non-negative')
+        if hi is None:
+            hi = len(a)
+        # Note, the comparison uses "<" to match the
+        # __lt__() logic in list.sort() and in heapq.
+        if key is None:
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if x < a[mid]:
+                    hi = mid
+                else:
+                    lo = mid + 1
+        else:
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if x < key(a[mid]):
+                    hi = mid
+                else:
+                    lo = mid + 1
+        return lo
+
+    def insort_right(self, a, x, lo=0, hi=None, *, key=None):
+        """Insert item x in list a, and keep it sorted assuming a is sorted.
+
+        If x is already in a, insert it to the right of the rightmost x.
+
+        Optional args lo (default 0) and hi (default len(a)) bound the
+        slice of a to be searched.
+        """
+        if key is None:
+            lo = self.bisect_right(a, x, lo, hi)
+        else:
+            lo = self.bisect_right(a, key(x), lo, hi, key=key)
+        a.insert(lo, x)
 
     def end_game(self, board: GoBoard, color: GO_COLOR) -> GO_POINT:
         """ Uses alpha-beta pruning to determine the best move.
