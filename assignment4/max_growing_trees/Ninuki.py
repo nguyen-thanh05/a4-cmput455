@@ -168,12 +168,12 @@ class A4SubmissionPlayer(GoEngine):
                 self.insort_right(leaves_to_expand, leaf, key=lambda node: node.value)
             else:  # else there are no leaves to simulate, so expand
                 if leaves_to_expand:  # if there are leaves to expand, then expand
-                    if leaves_to_expand[0].color_to_play == given_color:  # if it is our turn to play, then expand the leaf with the highest value
-                        leaf = leaves_to_expand.pop()
-                    else:  # else it is our opponent's turn to play, so expand the leaf with the lowest value
+                    if leaves_to_expand[0].color_to_play == 1:  # if it is our turn to play, then expand the leaf with the highest value
                         leaf = leaves_to_expand.pop(0)
+                    else:  # else it is our opponent's turn to play, so expand the leaf with the lowest value
+                        leaf = leaves_to_expand.pop()
                     # print(f"no leaf to simulate, so expanding {leaf.name}")
-                    moves = GoBoardUtil.generate_legal_moves(leaf.board, leaf.color_to_play)
+                    moves = self.reduce_tree_breadth(leaf.board, opponent(leaf.color_to_play))
                     # print(moves)
                     for move in moves:
                         child = leaf.add_child(move, 0)
@@ -181,6 +181,7 @@ class A4SubmissionPlayer(GoEngine):
                         child.color_to_play = opponent(leaf.color_to_play)  # assign the colours of the children
                         child.board = leaf.board.copy()
                         child.board.play_move(move, child.color_to_play)
+
                         leaves_to_simulate.append(child)
                 else:  # else there are no leaves to expand, so break
                     break
@@ -202,6 +203,12 @@ class A4SubmissionPlayer(GoEngine):
         # print(f"Choosing {best_move}. ")
         self.game_tree.save_tree(root, leaves_to_expand, leaves_to_simulate)
         return format_point(point_to_coord(best_move, board.size)).lower()
+
+    def reduce_tree_breadth(self, board, colour):
+        heuristic_moves = board.heuristic_move_search(colour)
+        if len(heuristic_moves) > 0:
+            return heuristic_moves
+        return GoBoardUtil.generate_legal_moves(board, colour)
 
     def bisect_right(self, a, x, lo=0, hi=None, key=None):
         if lo < 0:
