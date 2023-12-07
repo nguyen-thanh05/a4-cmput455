@@ -9,7 +9,7 @@ player2='ab_player/Ninuki-ab.py'
 timeout=60
 
 #Change the number of games played by the script
-numGames = 10
+numGames = 2
 
 win1=0
 win2=0
@@ -31,7 +31,7 @@ def setupPlayer(p):
     p.sendline('clear_board')
     p.sendline('timelimit {}'.format(timeout))
 
-def playSingleGame(alternative=False):
+def playSingleGame(alternative=True):
     if not alternative:
         p1=pexpect.spawn('python3 '+player1,timeout=timeout+1)
         p2=pexpect.spawn('python3 '+player2,timeout=timeout+1)

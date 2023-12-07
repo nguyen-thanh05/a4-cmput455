@@ -157,6 +157,9 @@ class GoBoard(object):
         self.black_capture_history = []
         self.white_capture_history = []
         self.move_history = []
+        self.rows = [[9, 10, 11, 12, 13, 14, 15], [17, 18, 19, 20, 21, 22, 23], [25, 26, 27, 28, 29, 30, 31], [33, 34, 35, 36, 37, 38, 39], [41, 42, 43, 44, 45, 46, 47], [49, 50, 51, 52, 53, 54, 55], [57, 58, 59, 60, 61, 62, 63]]
+        self.cols = [[9, 17, 25, 33, 41, 49, 57], [10, 18, 26, 34, 42, 50, 58], [11, 19, 27, 35, 43, 51, 59], [12, 20, 28, 36, 44, 52, 60], [13, 21, 29, 37, 45, 53, 61], [14, 22, 30, 38, 46, 54, 62], [15, 23, 31, 39, 47, 55, 63]]
+        self.diags = [[9, 18, 27, 36, 45, 54, 63], [10, 19, 28, 37, 46, 55], [11, 20, 29, 38, 47], [12, 21, 30, 39], [17, 26, 35, 44, 53, 62], [25, 34, 43, 52, 61], [33, 42, 51, 60], [33, 26, 19, 12], [41, 34, 27, 20, 13], [49, 42, 35, 28, 21, 14], [57, 50, 43, 36, 29, 22, 15], [58, 51, 44, 37, 30, 23], [59, 52, 45, 38, 31], [60, 53, 46, 39]]
 
     def add_two_captures(self, color: GO_COLOR) -> None:
         if color == BLACK:
@@ -503,8 +506,10 @@ class GoBoard(object):
         moves = []
         immediate_win = self.immediate_win_search(colour)
         block_opponent_win = self.block_opponent_win_search(colour)
-
+        open_four_ours = self.open_four_search(colour)
+        open_four_theirs = self.open_four_search(opponent(colour))
         moves += immediate_win
         moves += block_opponent_win
-
+        moves += open_four_ours
+        moves += open_four_theirs
         return list(set(moves))
