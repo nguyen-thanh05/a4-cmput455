@@ -33,7 +33,7 @@ from board_base import (
     GO_COLOR,
     GO_POINT,
 )
-
+from collections import deque
 
 """
 The GoBoard class implements a board and basic functions to play
@@ -44,6 +44,104 @@ For many more utility functions, see the GoBoardUtil class in board_util.py.
 The board is stored as a one-dimensional array of GO_POINT in self.board.
 See coord_to_point for explanations of the array encoding.
 """
+
+class AhoCorasickNode:
+    def __init__(self):
+        self.children = {}
+        self.fail = None
+        self.output = []
+
+
+def build_ac_trie(patterns):
+    root = AhoCorasickNode()
+
+    for pattern in patterns:
+        node = root
+        for num in pattern:
+            if num not in node.children:
+                node.children[num] = AhoCorasickNode()
+            node = node.children[num]
+        node.output.append(pattern)
+
+    queue = deque()
+    for child in root.children.values():
+        queue.append(child)
+        child.fail = root
+
+    while queue:
+        current_node = queue.popleft()
+        for num, child in current_node.children.items():
+            queue.append(child)
+            fail_node = current_node.fail
+            while fail_node and num not in fail_node.children:
+                fail_node = fail_node.fail
+            if fail_node:
+                child.fail = fail_node.children.get(num, root)
+            else:
+                child.fail = root
+            child.output.extend(child.fail.output)
+
+    return root
+
+
+def aho_corasick_search(pos_array, ac_trie, patterns):
+    current_node = ac_trie
+    i = 0
+    output = []
+
+    for num in pos_array:
+        while num not in current_node.children and current_node.fail:
+            current_node = current_node.fail
+        if num in current_node.children:
+            current_node = current_node.children[num]
+        for j in current_node.output:
+            pattern_index = patterns.index(j)
+            start_pos = i - len(j) + 1
+            output.append([pattern_index, start_pos])
+
+        i += 1
+    if len(output) == 0:
+        return [[-1, -1]]
+    else:
+        return output
+
+
+IMMEDIATE_WIN_WHITE = [[WHITE, WHITE, WHITE, WHITE, EMPTY], [WHITE, WHITE, WHITE, EMPTY, WHITE],
+                       [WHITE, WHITE, EMPTY, WHITE, WHITE], [WHITE, EMPTY, WHITE, WHITE, WHITE],
+                       [EMPTY, WHITE, WHITE, WHITE, WHITE]]
+IMMEDIATE_WIN_WHITE_EMPTY_OFFSET = [[4], [3], [2], [1], [0]]
+
+IMMEDIATE_WIN_BLACK = [[BLACK, BLACK, BLACK, BLACK, EMPTY], [BLACK, BLACK, BLACK, EMPTY, BLACK],
+                       [BLACK, BLACK, EMPTY, BLACK, BLACK], [BLACK, EMPTY, BLACK, BLACK, BLACK],
+                       [EMPTY, BLACK, BLACK, BLACK, BLACK]]
+IMMEDIATE_WIN_BLACK_EMPTY_OFFSET = [[4], [3], [2], [1], [0]]
+
+WHITE_CAPTURE = [[WHITE, BLACK, BLACK, EMPTY],
+                 [EMPTY, BLACK, BLACK, WHITE]]
+WHITE_CAPTURE_EMPTY_OFFSET = [[3], [0]]
+
+BLACK_CAPTURE = [[BLACK, WHITE, WHITE, EMPTY],
+                 [EMPTY, WHITE, WHITE, BLACK]]
+BLACK_CAPTURE_EMPTY_OFFSET = [[3], [0]]
+
+OPEN_FOUR_WHITE = [[EMPTY, WHITE, WHITE, WHITE, EMPTY, EMPTY],
+                   [EMPTY, WHITE, WHITE, EMPTY, WHITE, EMPTY],
+                   [EMPTY, WHITE, EMPTY, WHITE, WHITE, EMPTY],
+                   [EMPTY, EMPTY, WHITE, WHITE, WHITE, EMPTY]]
+OPEN_FOUR_WHITE_EMPTY_OFFSET = [[4], [3], [2], [1]]
+
+OPEN_FOUR_BLACK = [[EMPTY, BLACK, BLACK, BLACK, EMPTY, EMPTY],
+                   [EMPTY, BLACK, BLACK, EMPTY, BLACK, EMPTY],
+                   [EMPTY, BLACK, EMPTY, BLACK, BLACK, EMPTY],
+                   [EMPTY, EMPTY, BLACK, BLACK, BLACK, EMPTY]]
+OPEN_FOUR_BLACK_EMPTY_OFFSET = [[4], [3], [2], [1]]
+
+immediate_win_white_trie = build_ac_trie(IMMEDIATE_WIN_WHITE)
+immediate_win_black_trie = build_ac_trie(IMMEDIATE_WIN_BLACK)
+white_capture_trie = build_ac_trie(WHITE_CAPTURE)
+black_capture_trie = build_ac_trie(BLACK_CAPTURE)
+open_four_white_trie = build_ac_trie(OPEN_FOUR_WHITE)
+open_four_black_trie = build_ac_trie(OPEN_FOUR_BLACK)
 
 
 class GoBoard(object):
@@ -328,3 +426,85 @@ class GoBoard(object):
     def state_to_key(self):
         state = self.board.tobytes()
         return state, self.current_player, self.black_captures, self.white_captures
+
+
+    def pattern_search(self, patterns, offsets, trie):
+        moves = []
+        for position_array in self.rows + self.cols + self.diags:
+            search_output = aho_corasick_search(self.board[position_array], trie, patterns)
+            for item in search_output:
+                if item[0] != -1:  # A match was found
+                    for index in offsets[item[0]]:
+                        moves.append(position_array[item[1] + index])
+        return moves
+
+    def immediate_win_search(self, colour):
+        immediate_win_moves = []
+        if colour == WHITE:
+            immediate_win_moves += self.pattern_search(IMMEDIATE_WIN_WHITE, IMMEDIATE_WIN_WHITE_EMPTY_OFFSET,
+                                                       immediate_win_white_trie)
+            if self.white_captures >= 8:
+                immediate_win_moves += self.pattern_search(WHITE_CAPTURE, WHITE_CAPTURE_EMPTY_OFFSET,
+                                                           white_capture_trie)
+        elif colour == BLACK:
+            immediate_win_moves += self.pattern_search(IMMEDIATE_WIN_BLACK, IMMEDIATE_WIN_BLACK_EMPTY_OFFSET,
+                                                       immediate_win_black_trie)
+            if self.black_captures >= 8:
+                immediate_win_moves += self.pattern_search(BLACK_CAPTURE, BLACK_CAPTURE_EMPTY_OFFSET,
+                                                           black_capture_trie)
+        return immediate_win_moves
+
+    def block_opponent_win_search(self, colour):
+        opponent_colour = opponent(colour)
+        opponent_win_moves = self.immediate_win_search(opponent_colour)
+        block_moves = []
+
+        # Block 4 in a row by capturing stones
+        capturing_moves = self.capture_search(colour)
+
+        for capture in capturing_moves:
+            self.play_move(capture, colour)
+            new_opponent_win = self.immediate_win_search(opponent_colour)
+            if len(opponent_win_moves) > len(new_opponent_win):
+                block_moves.append(capture)
+            self.undo()
+
+        # Prevent opponent from capturing 10 stones
+        if colour == WHITE:
+            opp_captures = self.black_captures
+        elif colour == BLACK:
+            opp_captures = self.white_captures
+        if opp_captures >= 8:
+            opp_capture_moves = self.capture_search(opponent_colour)
+            if len(opp_capture_moves) > 0:
+                block_moves += opp_capture_moves
+
+        return list(set(block_moves + opponent_win_moves))
+
+    def open_four_search(self, colour):
+        open_four_moves = []
+        if colour == WHITE:
+            open_four_moves += self.pattern_search(OPEN_FOUR_WHITE, OPEN_FOUR_WHITE_EMPTY_OFFSET,
+                                                   open_four_white_trie)
+        elif colour == BLACK:
+            open_four_moves += self.pattern_search(OPEN_FOUR_BLACK, OPEN_FOUR_BLACK_EMPTY_OFFSET,
+                                                   open_four_black_trie)
+        return open_four_moves
+
+    def capture_search(self, colour):
+        capture_moves = []
+        if colour == WHITE:
+            return self.pattern_search(WHITE_CAPTURE, WHITE_CAPTURE_EMPTY_OFFSET, white_capture_trie)
+        elif colour == BLACK:
+            return self.pattern_search(BLACK_CAPTURE, WHITE_CAPTURE_EMPTY_OFFSET, black_capture_trie)
+        return capture_moves
+
+    def heuristic_move_search(self, colour):
+        moves = []
+        immediate_win = self.immediate_win_search(colour)
+        block_opponent_win = self.block_opponent_win_search(colour)
+
+        moves += immediate_win
+        moves += block_opponent_win
+
+        return list(set(moves))
